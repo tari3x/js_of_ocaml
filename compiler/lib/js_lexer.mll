@@ -29,6 +29,7 @@ let keyword_table =
     "break",      (fun ii -> T_BREAK ii);
     "case",       (fun ii -> T_CASE ii);
     "catch",      (fun ii -> T_CATCH ii);
+    "const",      (fun ii -> T_CONST ii);
     "continue",   (fun ii -> T_CONTINUE ii);
     "debugger",   (fun ii -> T_DEBUGGER ii);
     "default",    (fun ii -> T_DEFAULT ii);
@@ -42,6 +43,7 @@ let keyword_table =
     "if",         (fun ii -> T_IF ii);
     "in",         (fun ii -> T_IN ii);
     "instanceof", (fun ii -> T_INSTANCEOF ii);
+    "let",        (fun ii -> T_LET ii);
     "new",        (fun ii -> T_NEW ii);
     "null",       (fun ii -> T_NULL ii);
     "return",     (fun ii -> T_RETURN ii);

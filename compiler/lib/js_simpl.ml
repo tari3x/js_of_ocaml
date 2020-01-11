@@ -95,15 +95,15 @@ exception Not_assignment
 
 let rec assignment_of_statement_list l =
   match l with
-  | [ (J.Variable_statement [ (x, Some e) ], _) ] -> x, e
+  | [ (J.Variable_statement (k,[ (x, Some e) ]), _) ] -> k, x, e
   | (J.Expression_statement e, _) :: rem ->
-      let x, (e', nid) = assignment_of_statement_list rem in
-      x, (J.ESeq (e, e'), nid)
+      let k, x, (e', nid) = assignment_of_statement_list rem in
+      k, x, (J.ESeq (e, e'), nid)
   | _ -> raise Not_assignment
 
 let assignment_of_statement st =
   match fst st with
-  | J.Variable_statement [ (x, Some e) ] -> x, e
+  | J.Variable_statement (k, [ (x, Some e) ]) -> k, x, e
   | J.Block l -> assignment_of_statement_list l
   | _ -> raise Not_assignment
 
@@ -126,11 +126,11 @@ let rec if_statement_2 e loc iftrue truestop iffalse falsestop =
   | _ -> (
       try
         (* Generates conditional *)
-        let x1, (e1, _) = assignment_of_statement iftrue in
-        let x2, (e2, _) = assignment_of_statement iffalse in
-        if Poly.(x1 <> x2) then raise Not_assignment;
+        let k1, x1, (e1, _) = assignment_of_statement iftrue in
+        let k2, x2, (e2, _) = assignment_of_statement iffalse in
+        if Poly.(x1 <> x2) || Poly.(k1 <> k2) then raise Not_assignment;
         let exp = if Poly.(e1 = e) then J.EBin (J.Or, e, e2) else J.ECond (e, e1, e2) in
-        [ J.Variable_statement [ x1, Some (exp, loc) ], loc ]
+        [ J.Variable_statement (k1, [ x1, Some (exp, loc) ]), loc ]
       with Not_assignment -> (
         try
           let e1 = expression_of_statement iftrue in

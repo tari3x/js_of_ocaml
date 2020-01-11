@@ -68,7 +68,7 @@ class map : mapper =
     method statement s =
       match s with
       | Block b -> Block (m#statements b)
-      | Variable_statement l -> Variable_statement (List.map l ~f:m#variable_declaration)
+      | Variable_statement (k,l) -> Variable_statement (k, List.map l ~f:m#variable_declaration)
       | Empty_statement -> Empty_statement
       | Debugger_statement -> Debugger_statement
       | Expression_statement e -> Expression_statement (m#expression e)
@@ -283,7 +283,7 @@ class share_constant =
         let f = Hashtbl.find all in
         let p = (new replace_expr f)#program p in
         let all = Hashtbl.fold (fun e v acc -> (v, Some (e, N)) :: acc) all [] in
-        (Statement (Variable_statement all), N) :: p
+        (Statement (Variable_statement (Const, all)), N) :: p
   end
 
 module S = Code.Var.Set
@@ -429,7 +429,7 @@ class free =
 
     method statement x =
       match x with
-      | Variable_statement l ->
+      | Variable_statement (k,l) ->
           let l =
             List.map l ~f:(fun (id, eopt) ->
                 m#def_var id;
@@ -439,7 +439,7 @@ class free =
                     let e = m#expression e in
                     id, Some (e, pc))
           in
-          Variable_statement l
+          Variable_statement (k,l)
       | For_statement (Right l, e2, e3, (s, loc)) ->
           let l =
             List.map l ~f:(fun (id, eopt) ->
@@ -602,7 +602,7 @@ class compact_vardecl =
     method statement s =
       let s = super#statement s in
       match s with
-      | Variable_statement l -> m#translate_st l
+      | Variable_statement (_,l) -> m#translate_st l
       | For_statement (Right l, e2, e3, s) ->
           For_statement (Left (m#translate_ex l), e2, e3, s)
       | ForIn_statement (Right (id, op), e2, s) ->
@@ -643,7 +643,7 @@ class compact_vardecl =
       let may_flush rem vars s instr =
         if List.is_empty vars
         then rem, [], s :: instr
-        else rem, [], s :: (Statement (Variable_statement (List.rev vars)), N) :: instr
+        else rem, [], s :: (Statement (Variable_statement (Var, List.rev vars)), N) :: instr
       in
       let rem, vars, instr =
         List.fold_left sources ~init:(all, [], []) ~f:(fun (rem, vars, instr) (s, loc) ->
@@ -663,15 +663,15 @@ class compact_vardecl =
         match vars with
         | [] -> List.rev instr
         | d ->
-            let d = Statement (Variable_statement (List.rev d)) in
+            let d = Statement (Variable_statement (Var, List.rev d)) in
             List.rev ((d, N) :: instr)
       in
       let l = IdentSet.fold (fun x acc -> (x, None) :: acc) rem [] in
       match l, instr with
       | [], _ -> instr
-      | l, (Statement (Variable_statement l'), loc) :: rest ->
-          (Statement (Variable_statement (List.rev_append l l')), loc) :: rest
-      | l, _ -> (Statement (Variable_statement l), N) :: instr
+      | l, (Statement (Variable_statement (Var, l')), loc) :: rest ->
+          (Statement (Variable_statement (Var, List.rev_append l l')), loc) :: rest
+      | l, _ -> (Statement (Variable_statement(Var, l)), N) :: instr
 
     method source x =
       let x = super#source x in
@@ -736,7 +736,7 @@ class clean =
           ~init:([], N, [])
           ~f:(fun (vars_rev, vars_loc, instr_rev) (x, loc) ->
             match x with
-            | Variable_statement l when Config.Flag.compact () ->
+            | Variable_statement (_,l) when Config.Flag.compact () ->
                 let vars_loc =
                   match vars_loc with
                   | Pi _ as x -> x
@@ -752,12 +752,12 @@ class clean =
                 , vars_loc
                 , rev_append_st
                     (x, loc)
-                    ((Variable_statement (List.rev vars_rev), vars_loc) :: instr_rev) ))
+                    ((Variable_statement (Var, List.rev vars_rev), vars_loc) :: instr_rev) ))
       in
       let instr_rev =
         match vars_rev with
         | [] -> instr_rev
-        | vars_rev -> (Variable_statement (List.rev vars_rev), vars_loc) :: instr_rev
+        | vars_rev -> (Variable_statement (Var, List.rev vars_rev), vars_loc) :: instr_rev
       in
       List.rev instr_rev
 
@@ -893,14 +893,14 @@ class simpl =
               , Some (Expression_statement (EBin (Eq, v2, e2)), _) )
             when Poly.(v1 = v2) ->
               (Expression_statement (EBin (Eq, v1, ECond (cond, e1, e2))), loc) :: rem
-          | Variable_statement l1 ->
+          | Variable_statement (k,l1) ->
               let x =
                 List.map l1 ~f:(function
-                    | ident, None -> Variable_statement [ ident, None ], loc
+                    | ident, None -> Variable_statement (k, [ ident, None ]), loc
                     | ident, Some (exp, pc) -> (
                         match assign_op (EVar ident, exp) with
                         | Some e -> Expression_statement e, loc
-                        | None -> Variable_statement [ ident, Some (exp, pc) ], loc))
+                        | None -> Variable_statement (k, [ ident, Some (exp, pc) ]), loc))
               in
               x @ rem
           | _ -> (st, loc) :: rem)
@@ -910,8 +910,8 @@ class simpl =
         let st = m#statements (List.rev st_rev) in
         let st =
           List.map st ~f:(function
-              | ( Variable_statement
-                    [ (addr, Some (EFun (None, params, body, loc'), loc)) ]
+              | ( Variable_statement (_,
+                    [ (addr, Some (EFun (None, params, body, loc'), loc)) ])
                 , _ ) ->
                   Function_declaration (addr, params, body, loc'), loc
               | s, loc -> Statement s, loc)

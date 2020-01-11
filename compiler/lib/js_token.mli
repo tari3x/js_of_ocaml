@@ -22,6 +22,8 @@ type token =
   | T_VOID of Parse_info.t
   | T_VIRTUAL_SEMICOLON of Parse_info.t
   | T_VAR of Parse_info.t
+  | T_LET of Parse_info.t
+  | T_CONST of Parse_info.t
   | T_TYPEOF of Parse_info.t
   | T_TRY of Parse_info.t
   | T_TRUE of Parse_info.t

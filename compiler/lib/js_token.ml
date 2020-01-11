@@ -25,6 +25,8 @@ type token =
   | T_VOID of Parse_info.t
   | T_VIRTUAL_SEMICOLON of Parse_info.t
   | T_VAR of Parse_info.t
+  | T_LET of Parse_info.t
+  | T_CONST of Parse_info.t
   | T_TYPEOF of Parse_info.t
   | T_TRY of Parse_info.t
   | T_TRUE of Parse_info.t
@@ -134,6 +136,8 @@ let info_of_tok = function
   | T_THROW ii -> ii
   | T_TRY ii -> ii
   | T_VAR ii -> ii
+  | T_LET ii -> ii
+  | T_CONST ii -> ii
   | T_WHILE ii -> ii
   | T_WITH ii -> ii
   | T_NULL ii -> ii
@@ -227,7 +231,9 @@ let string_of_tok = function
   | T_THROW _ -> "T_THROW"
   | T_TRY _ -> "T_TRY"
   | T_VAR _ -> "T_VAR"
-  | T_WHILE _ -> "T_WHILE"
+  | T_LET _ -> "T_LET"
+  | T_CONST _ -> "T_CONST"
+ | T_WHILE _ -> "T_WHILE"
   | T_WITH _ -> "T_WITH"
   | T_NULL _ -> "T_NULL"
   | T_FALSE _ -> "T_FALSE"

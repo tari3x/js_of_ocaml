@@ -56,7 +56,7 @@ let _tok = EOF Parse_info.zero
 (* Keywords tokens *)
 %token <Parse_info.t>
 T_FUNCTION T_IF T_RETURN T_SWITCH T_THIS T_THROW T_TRY
-T_VAR T_WHILE T_WITH T_NULL T_FALSE T_TRUE
+T_VAR T_LET T_CONST T_WHILE T_WITH T_NULL T_FALSE T_TRUE
 T_BREAK T_CASE T_CATCH T_CONTINUE T_DEFAULT T_DO T_FINALLY T_FOR
 T_DEBUGGER
 
@@ -223,7 +223,11 @@ block:
 
 variable_statement:
  | pi=T_VAR list=separated_nonempty_list(T_COMMA, pair(variable, initializer_?))
-   { J.Variable_statement list, J.Pi pi }
+   { J.Variable_statement (J.Var, list), J.Pi pi }
+ | pi=T_LET list=separated_nonempty_list(T_COMMA, pair(variable, initializer_?))
+   { J.Variable_statement (J.Let, list), J.Pi pi }
+ | pi=T_CONST list=separated_nonempty_list(T_COMMA, pair(variable, initializer_?))
+   { J.Variable_statement (J.Const, list), J.Pi pi }
 
 initializer_:
  | pi=T_ASSIGN e=assignment_expression { e, J.Pi pi }

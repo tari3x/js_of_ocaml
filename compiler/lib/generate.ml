@@ -364,7 +364,7 @@ let rec constant_rec ~ctx x level instrs =
                   | J.EArr _ ->
                       let v = Code.Var.fresh_n "partial" in
                       let instrs =
-                        (J.Variable_statement [ J.V v, Some (js, J.N) ], J.N) :: instrs
+                        (J.Variable_statement (Const, [ J.V v, Some (js, J.N) ]), J.N) :: instrs
                       in
                       J.EVar (J.V v) :: acc, instrs
                   | _ -> js :: acc, instrs)
@@ -416,7 +416,7 @@ let access_queue_may_flush queue v x =
         if Code.Var.Set.exists (fun p -> Code.Var.Set.mem p deps) elt.deps
         then
           ( Code.Var.Set.add y deps
-          , (J.Variable_statement [ J.V y, Some (elt.ce, elt.loc) ], elt.loc) :: instrs
+          , (J.Variable_statement (Const, [ J.V y, Some (elt.ce, elt.loc) ]), elt.loc) :: instrs
           , queue )
         else deps, instrs, eq :: queue)
   in
@@ -432,7 +432,7 @@ let flush_queue expr_queue prop (l : J.statement_list) =
   in
   let instrs =
     List.map instrs ~f:(fun (x, elt) ->
-        J.Variable_statement [ J.V x, Some (elt.ce, elt.loc) ], elt.loc)
+        J.Variable_statement (Const, [ J.V x, Some (elt.ce, elt.loc) ]), elt.loc)
   in
   List.rev_append instrs l, expr_queue
 
@@ -686,7 +686,7 @@ let parallel_renaming params args continuation queue =
         flush_queue
           queue
           px
-          (instrs @ [ J.Variable_statement [ J.V y, Some (cx, J.N) ], J.N ])
+          (instrs @ [ J.Variable_statement (Var, [ J.V y, Some (cx, J.N) ]), J.N ])
       in
       st @ continuation queue)
     ~init:continuation
@@ -1223,7 +1223,7 @@ and translate_instr ctx expr_queue loc instr =
           flush_queue
             expr_queue
             prop
-            (instrs @ [ J.Variable_statement [ J.V x, Some (ce, loc) ], loc ]))
+            (instrs @ [ J.Variable_statement (Const, [ J.V x, Some (ce, loc) ]), loc ]))
   | Set_field (x, n, y) ->
       let (_px, cx), expr_queue = access_queue expr_queue x in
       let (_py, cy), expr_queue = access_queue expr_queue y in
@@ -1417,7 +1417,7 @@ and compile_block st queue (pc : Addr.t) frontier interm =
             match exn_escape with
             | Some x' ->
                 handler
-                @ [ J.Variable_statement [ J.V x', Some (EVar (J.V x), J.N) ], J.N ]
+                @ [ J.Variable_statement(Const, [ J.V x', Some (EVar (J.V x), J.N) ]), J.N ]
             | None -> handler
           in
           flush_all
@@ -1525,7 +1525,7 @@ and colapse_frontier st new_frontier interm =
     Addr.Set.iter (fun pc -> protect_preds st pc) new_frontier;
     Hashtbl.add st.succs idx (Addr.Set.elements new_frontier);
     Hashtbl.add st.backs idx Addr.Set.empty;
-    ( [ J.Variable_statement [ J.V x, Some (int default, J.N) ], J.N ]
+    ( [ J.Variable_statement(Let, [ J.V x, Some (int default, J.N) ]), J.N ]
     , Addr.Set.singleton idx
     , List.fold_right pc_i ~init:interm ~f:(fun (pc, i) interm ->
           Addr.Map.add pc (idx, (x, i, default = i)) interm) ))
@@ -1593,7 +1593,7 @@ and compile_decision_tree st _queue handler backs frontier interm succs loc cx d
     | (J.EVar _ | _) when DTree.nbcomp dtree <= 1 -> cx, []
     | _ ->
         let v = J.V (Code.Var.fresh ()) in
-        J.EVar v, [ J.Variable_statement [ v, Some (cx, J.N) ], J.N ]
+        J.EVar v, [ J.Variable_statement(Const, [ v, Some (cx, J.N) ]), J.N ]
   in
   binds @ snd (loop cx dtree)
 
@@ -1773,7 +1773,7 @@ and compile_exn_handling ctx queue (pc, args) handler continuation =
                         queue
                         px
                         [ (let loc = source_location ctx pc in
-                           J.Variable_statement [ J.V y, Some (cx, loc) ], loc)
+                           J.Variable_statement(Let,[ J.V y, Some (cx, loc) ]), loc)
                         ]
                 in
                 st @ loop continuation old args params queue
@@ -1850,7 +1850,7 @@ and compile_closure ctx (pc, args) =
 let generate_shared_value ctx =
   let strings =
     ( J.Statement
-        (J.Variable_statement
+        (J.Variable_statement (Const,
            ((match ctx.Ctx.exported_runtime with
             | None -> []
             | Some v ->
@@ -1861,7 +1861,7 @@ let generate_shared_value ctx =
                ~f:(fun (s, v) -> v, Some (str_js s, J.N))
            @ List.map
                (StringMap.bindings ctx.Ctx.share.Share.vars.Share.prims)
-               ~f:(fun (s, v) -> v, Some (runtime_fun ctx s, J.N))))
+               ~f:(fun (s, v) -> v, Some (runtime_fun ctx s, J.N)))))
     , J.U )
   in
   if not (Config.Flag.inline_callgen ())

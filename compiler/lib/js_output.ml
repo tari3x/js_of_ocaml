@@ -742,11 +742,16 @@ struct
         PP.break f;
         variable_declaration_list_aux f r
 
-  and variable_declaration_list close f = function
+  and const_let_var f = function
+    | Var -> PP.string f "var"
+    | Const -> PP.string f "const"
+    | Let -> PP.string f "let"
+
+  and variable_declaration_list k close f = function
     | [] -> ()
     | [ (i, None) ] ->
         PP.start_group f 1;
-        PP.string f "var";
+        const_let_var f k;
         PP.space f;
         ident f i;
         if close then PP.string f ";";
@@ -754,7 +759,7 @@ struct
     | [ (i, Some (e, pc)) ] ->
         PP.start_group f 1;
         output_debug_info f pc;
-        PP.string f "var";
+        const_let_var f k;
         PP.space f;
         ident f i;
         PP.string f "=";
@@ -766,7 +771,7 @@ struct
         PP.end_group f
     | l ->
         PP.start_group f 1;
-        PP.string f "var";
+        const_let_var f k;
         PP.space f;
         variable_declaration_list_aux f l;
         if close then PP.string f ";";
@@ -782,7 +787,7 @@ struct
     output_debug_info f loc;
     match s with
     | Block b -> block f b
-    | Variable_statement l -> variable_declaration_list (not last) f l
+    | Variable_statement (k,l) -> variable_declaration_list k (not last) f l
     | Empty_statement -> PP.string f ";"
     | Debugger_statement ->
         PP.string f "debugger";
@@ -926,7 +931,7 @@ struct
         PP.string f "(";
         (match e1 with
         | Left e -> opt_expression 0 f e
-        | Right l -> variable_declaration_list false f l);
+        | Right l -> variable_declaration_list Var false f l);
         PP.string f ";";
         PP.break f;
         opt_expression 0 f e2;
@@ -950,7 +955,7 @@ struct
         PP.string f "(";
         (match e1 with
         | Left e -> expression 0 f e
-        | Right v -> variable_declaration_list false f [ v ]);
+        | Right v -> variable_declaration_list Var false f [ v ]);
         PP.space f;
         PP.string f "in";
         PP.break f;

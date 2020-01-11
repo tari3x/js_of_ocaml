@@ -226,10 +226,12 @@ and expression =
 
 (****)
 
+and const_let_var = Const | Let | Var
+
 (* A.4 Statements *)
 and statement =
   | Block of block
-  | Variable_statement of variable_declaration list
+  | Variable_statement of const_let_var * variable_declaration list
   | Empty_statement
   | Expression_statement of expression
   | If_statement of expression * (statement * location) * (statement * location) option

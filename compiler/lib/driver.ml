@@ -238,7 +238,7 @@ let gen_missing js missing =
     warn "You can prevent the generation of dummy implementations with ";
     warn "the commandline option '--disable genprim'@.";
     report_missing_primitives missing);
-  (Statement (Variable_statement miss), N) :: js
+  (Statement (Variable_statement (Var, miss)), N) :: js
 
 let link ~standalone ~linkall ~export_runtime (js : Javascript.source_elements) :
     Linker.output =
@@ -384,7 +384,7 @@ let pack ~global { Linker.runtime_code = js; always_required_codes } =
     in
     match global with
     | `Bind_to name ->
-        [ J.Statement (J.Variable_statement [ J.ident name, Some (expr, J.N) ]), J.N ]
+        [ J.Statement (J.Variable_statement (Var, [ J.ident name, Some (expr, J.N) ])), J.N ]
     | _ -> [ J.Statement (J.Expression_statement expr), J.N ]
   in
   let always_required_js =

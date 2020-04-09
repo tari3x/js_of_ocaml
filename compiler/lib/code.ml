@@ -259,7 +259,7 @@ type array_or_not =
 
 type constant =
   | String of string
-  | IString of string
+  | NativeString of string
   | Float of float
   | Float_array of float array
   | Int64 of int64
@@ -323,7 +323,7 @@ module Print = struct
   let rec constant f x =
     match x with
     | String s -> Format.fprintf f "%S" s
-    | IString s -> Format.fprintf f "%S" s
+    | NativeString s -> Format.fprintf f "%S" s
     | Float fl -> Format.fprintf f "%.12g" fl
     | Float_array a ->
         Format.fprintf f "[|";

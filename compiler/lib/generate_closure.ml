@@ -136,7 +136,7 @@ module Trampoline = struct
 
   let wrapper_closure pc args = Closure (args, (pc, []))
 
-  let f free_pc blocks closures_map component =
+  let f free_pc blocks live closures_map component =
     match component with
     | SCC.No_loop id ->
         let ci = Var.Map.find id closures_map in
@@ -226,7 +226,13 @@ module Trampoline = struct
                         Addr.Map.add pc block blocks, free_pc
                     | _ -> assert false)
               in
-              blocks, free_pc, instr_real :: instrs, instr_wrapper :: instrs_wrapper)
+              let instrs, instrs_wrapper =
+                if live.(Var.idx ci.f_name)
+                   = Var.Map.fold (fun _ s acc -> acc + Addr.Set.cardinal s) ci.tc 0
+                then instr_real :: instr_wrapper :: instrs, instrs_wrapper
+                else instr_real :: instrs, instr_wrapper :: instrs_wrapper
+              in
+              blocks, free_pc, instrs, instrs_wrapper)
         in
         free_pc, blocks, { int = instrs; ext = instrs_wrapper }
 end
@@ -248,11 +254,11 @@ module Ident = struct
         free_pc, blocks, { int = []; ext = instrs }
 end
 
-let rewrite_tc free_pc blocks closures_map component =
+let rewrite_tc free_pc blocks live closures_map component =
   let open Config.Param in
   match tailcall_optim () with
   | TcNone -> Ident.f free_pc blocks closures_map component
-  | TcTrampoline -> Trampoline.f free_pc blocks closures_map component
+  | TcTrampoline -> Trampoline.f free_pc blocks live closures_map component
 
 let rewrite_mutable
     free_pc
@@ -334,29 +340,45 @@ let rewrite_mutable
                     Let (new_x, Closure (params, (pc, List.map pc_args ~f:mapping)))
                 | _ -> assert false)
           in
-          { params = []
-          ; handler = None
-          ; body =
-              closures_intern
-              @ proj
-              @ [ Let (b, Block (0, Array.of_list new_xs, NotArray)) ]
-          ; branch = Return b
-          }
+          match new_xs with
+          | [] -> assert false
+          | [ x ] ->
+              { params = []
+              ; handler = None
+              ; body = closures_intern @ proj
+              ; branch = Return x
+              }
+          | _ ->
+              { params = []
+              ; handler = None
+              ; body =
+                  closures_intern
+                  @ proj
+                  @ [ Let (b, Block (0, Array.of_list new_xs, NotArray)) ]
+              ; branch = Return b
+              }
         in
         let blocks = Addr.Map.add new_pc new_block blocks in
         let body =
-          [ Let (closure, Closure (args, (new_pc, [])))
-          ; Let (closure', Apply (closure, vars, true))
-          ]
-          @ List.mapi closures_extern ~f:(fun i x ->
-                match x with
-                | Let (x, Closure _) -> Let (x, Field (closure', i))
-                | _ -> assert false)
+          match closures_extern with
+          | [] -> assert false
+          | [ Let (x, Closure _) ] ->
+              [ Let (closure, Closure (args, (new_pc, [])))
+              ; Let (x, Apply (closure, vars, true))
+              ]
+          | _ ->
+              [ Let (closure, Closure (args, (new_pc, [])))
+              ; Let (closure', Apply (closure, vars, true))
+              ]
+              @ List.mapi closures_extern ~f:(fun i x ->
+                    match x with
+                    | Let (x, Closure _) -> Let (x, Field (closure', i))
+                    | _ -> assert false)
         in
         free_pc, blocks, body
 
-let rec rewrite_closures mutated_vars rewrite_list free_pc blocks body : int * _ * _ list
-    =
+let rec rewrite_closures live mutated_vars rewrite_list free_pc blocks body :
+    int * _ * _ list =
   match body with
   | Let (_, Closure _) :: _ ->
       let closures, rem = collect_closures blocks body in
@@ -367,26 +389,28 @@ let rec rewrite_closures mutated_vars rewrite_list free_pc blocks body : int * _
           ~init:(free_pc, blocks, [])
           ~f:(fun (free_pc, blocks, acc) component ->
             let free_pc, blocks, closures =
-              rewrite_tc free_pc blocks closures_map component
+              rewrite_tc free_pc blocks live closures_map component
             in
+
             let free_pc, blocks, intrs =
               rewrite_mutable free_pc blocks mutated_vars rewrite_list closures
             in
             free_pc, blocks, intrs :: acc)
       in
       let free_pc, blocks, rem =
-        rewrite_closures mutated_vars rewrite_list free_pc blocks rem
+        rewrite_closures live mutated_vars rewrite_list free_pc blocks rem
       in
       free_pc, blocks, List.flatten closures @ rem
   | i :: rem ->
       let free_pc, blocks, rem =
-        rewrite_closures mutated_vars rewrite_list free_pc blocks rem
+        rewrite_closures live mutated_vars rewrite_list free_pc blocks rem
       in
       free_pc, blocks, i :: rem
   | [] -> free_pc, blocks, []
 
 let f p : Code.program =
   Code.invariant p;
+  let p, live = Deadcode.f p in
   let mutated_vars = Freevars.f p in
   let rewrite_list = ref [] in
   let blocks, free_pc =
@@ -395,7 +419,7 @@ let f p : Code.program =
         (* make sure we have the latest version *)
         let block = Addr.Map.find pc blocks in
         let free_pc, blocks, body =
-          rewrite_closures mutated_vars rewrite_list free_pc blocks block.body
+          rewrite_closures live mutated_vars rewrite_list free_pc blocks block.body
         in
         Addr.Map.add pc { block with body } blocks, free_pc)
       p.blocks
